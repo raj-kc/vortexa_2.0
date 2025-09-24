@@ -1,5 +1,5 @@
 import { Sparkles, Video, Brain, BarChart3, LogIn, LogOut, UserCircle } from 'lucide-react';
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 type NavigationProps = {
   activeModule: 'summarizer' | 'quiz' | 'dashboard';
