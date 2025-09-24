@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { VideoUpload } from './VideoUpload';
 import { SummaryViewer } from './SummaryViewer';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
+import { summarizeYouTube, summarizeLocalVideo, saveSummaryToSupabase } from '../../api/videoSummarizer';
+import { useApp } from '../../context/AppContext';
+import { supabase } from '../../supabaseClient';
 
 export const VideoSummarizerModule: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -14,65 +17,40 @@ export const VideoSummarizerModule: React.FC = () => {
       research: string;
     };
   } | null>(null);
+  const { state } = useApp(); // To get userId if you store it in context
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Get user ID from Supabase Auth if not in context
+  useEffect(() => {
+    async function fetchUser() {
+      const { data } = await supabase.auth.getUser();
+      setUserId(data?.user?.id ?? null);
+    }
+    fetchUser();
+  }, []);
 
   const handleVideoProcess = async (videoData: { type: 'file' | 'youtube'; data: string | File }) => {
     setIsProcessing(true);
-    
-    // Simulate AI processing
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    // Mock AI-generated content
-    const mockSummary = {
-      title: videoData.type === 'youtube' ? 'YouTube Video Analysis' : 'Uploaded Video Analysis',
-      transcript: `This is a comprehensive transcript of the video content. The speaker discusses various important concepts related to artificial intelligence, machine learning, and their applications in modern technology. The content covers fundamental principles, practical implementations, and future possibilities in the field.
 
-Key points discussed include:
-- Introduction to AI fundamentals
-- Machine learning algorithms and their applications  
-- Neural networks and deep learning concepts
-- Real-world use cases and implementations
-- Future trends and developments
-- Ethical considerations in AI development`,
-      summaries: {
-        short: `• AI fundamentals and core concepts
-• Machine learning algorithms overview
-• Neural networks introduction
-• Practical applications in technology
-• Future trends and ethical considerations`,
-        medium: `This video provides a comprehensive overview of artificial intelligence and machine learning technologies. The presenter begins with fundamental AI concepts, explaining how machines can be trained to recognize patterns and make decisions.
+    let result;
+    if (videoData.type === 'youtube') {
+      result = await summarizeYouTube(videoData.data as string);
+    } else {
+      result = await summarizeLocalVideo(videoData.data as File);
+    }
 
-The discussion covers various machine learning algorithms, including supervised and unsupervised learning approaches. Neural networks are introduced as powerful tools for complex pattern recognition, with examples of their use in image recognition and natural language processing.
+    console.log('Summarization result:', result); // Log the result for debugging
 
-Practical applications are highlighted across industries, from healthcare diagnostics to autonomous vehicles. The video concludes with thoughts on future developments and the importance of ethical AI development.`,
-        research: `This comprehensive analysis explores the current state and future prospects of artificial intelligence and machine learning technologies. The content provides an in-depth examination of fundamental concepts, methodologies, and applications.
+    // Save to Supabase
+    await saveSummaryToSupabase({
+      title: result.title,
+      summaryType: videoData.type,
+      content: result.summaries.short, // or medium/research as needed
+      transcript: result.transcript,
+      userId: userId, // Now userId is set
+    });
 
-**Fundamental Concepts:**
-The video establishes a strong foundation in AI principles, covering the evolution from rule-based systems to modern machine learning approaches. Key concepts include pattern recognition, decision-making algorithms, and the role of data in training intelligent systems.
-
-**Technical Deep Dive:**
-Machine learning algorithms are categorized into supervised, unsupervised, and reinforcement learning paradigms. Supervised learning techniques such as linear regression, decision trees, and support vector machines are discussed with their respective strengths and limitations.
-
-Neural networks receive particular attention, with explanations of perceptrons, multi-layer networks, and deep learning architectures. The discussion includes convolutional neural networks for image processing and recurrent neural networks for sequential data analysis.
-
-**Industry Applications:**
-Real-world implementations span multiple sectors:
-- Healthcare: Diagnostic imaging and drug discovery
-- Finance: Fraud detection and algorithmic trading
-- Transportation: Autonomous vehicles and route optimization
-- Technology: Natural language processing and recommendation systems
-
-**Future Considerations:**
-The analysis concludes with forward-looking perspectives on AI development, including quantum computing integration, explainable AI, and the critical importance of ethical frameworks in AI deployment.
-
-**Related Resources:**
-- "Deep Learning" by Ian Goodfellow
-- "Pattern Recognition and Machine Learning" by Christopher Bishop
-- Stanford CS229 Machine Learning Course
-- MIT 6.034 Artificial Intelligence Course`
-      }
-    };
-    
-    setSummary(mockSummary);
+    setSummary(result);
     setIsProcessing(false);
   };
 
